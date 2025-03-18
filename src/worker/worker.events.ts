@@ -16,6 +16,8 @@ export class EventAPI {
 	subscriptions: Record<string, SubscriptionRecord[]> = {};
 
 	url = import.meta.env.VITE_APP_API_EVENTS;
+	version = import.meta.env.VITE_APP_VERSION;
+	nightly = import.meta.env.VITE_APP_VERSION_BRANCH === "nightly";
 	private socket: WebSocket | null = null;
 	private eventSource: EventSource | null = null;
 	private shouldResume = false;
@@ -40,10 +42,15 @@ export class EventAPI {
 	connect(transport: EventAPITransport): void {
 		if (this.eventSource || this.socket || !this.url) return;
 
+		const url = new URL(this.url);
+
+		url.searchParams.append("app", "7tv-extension" + (this.nightly ? "-nightly" : ""));
+		url.searchParams.append("version", this.version);
+
 		this.transport = transport;
 
 		if (this.transport === "WebSocket") {
-			this.socket = new WebSocket(this.url);
+			this.socket = new WebSocket(url);
 			this.socket.onopen = () => this.onOpen();
 			this.socket.onclose = () => this.onClose();
 			this.socket.onmessage = (ev) => {
@@ -59,7 +66,7 @@ export class EventAPI {
 			this.disconnectReason = "";
 		}
 
-		log.debug("<EventAPI>", "Connecting...", `url=${this.url}`);
+		log.debug("<EventAPI>", "Connecting...", `url=${this.url}`, `version=${this.version}`);
 	}
 
 	getSocket(): WebSocket | null {
@@ -116,7 +123,7 @@ export class EventAPI {
 		);
 	}
 
-	private onDispatch(msg: EventAPIMessage<"DISPATCH">): void {
+	onDispatch(msg: EventAPIMessage<"DISPATCH">): void {
 		handleDispatchedEvent(this.getContext(), msg.data.type, msg.data.body);
 
 		log.debugWithObjects(["<EventAPI>", "Dispatch received"], [msg.data]);
